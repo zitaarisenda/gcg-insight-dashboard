@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { DonutChart } from '@/components/charts/DonutChart';
 import { LineChart } from '@/components/charts/LineChart';
 import { BarChart } from '@/components/charts/BarChart';
@@ -22,62 +23,57 @@ interface AspectDashboardProps {
 }
 
 export const AspectDashboard = ({ data }: AspectDashboardProps) => {
-  const [selectedYear, setSelectedYear] = useState<string>('all');
-  const [selectedAspect, setSelectedAspect] = useState<string>('all');
+  const [yearFrom, setYearFrom] = useState<string>('all');
+  const [yearTo, setYearTo] = useState<string>('all');
+  const [selectedAspects, setSelectedAspects] = useState<string[]>([]);
+  const [selectedAspectForTrend, setSelectedAspectForTrend] = useState<string>('');
 
   // Get unique years and aspects
-  const years = [...new Set(data.map(item => item.Tahun))].sort();
-  const aspects = [...new Set(data.map(item => item.No))].sort();
+  const years = [...new Set(data.filter(item => item.Type === 'aspek').map(item => item.Tahun))].sort();
+  const aspects = [...new Set(data.filter(item => item.Type === 'aspek').map(item => item.No))].sort();
 
   // Filter data based on selections
   const filteredData = data.filter(item => {
     const aspectData = item.Type === 'aspek';
-    const yearMatch = selectedYear === 'all' || item.Tahun.toString() === selectedYear;
-    const aspectMatch = selectedAspect === 'all' || item.No === selectedAspect;
+    const yearMatch = (yearFrom === 'all' && yearTo === 'all') || 
+      (yearFrom === 'all' ? item.Tahun <= parseInt(yearTo) : 
+       yearTo === 'all' ? item.Tahun >= parseInt(yearFrom) :
+       item.Tahun >= parseInt(yearFrom) && item.Tahun <= parseInt(yearTo));
+    const aspectMatch = selectedAspects.length === 0 || selectedAspects.includes(item.No);
     return aspectData && yearMatch && aspectMatch;
   });
 
-  // 1. Total Aspek Tercapai/Belum Tercapai
-  const threshold = 85;
-  const achievementData = years.map(year => {
-    const yearData = data.filter(item => item.Tahun === year && item.Type === 'aspek');
-    const tercapai = yearData.filter(item => item.Capaian >= threshold).length;
-    const belumTercapai = yearData.filter(item => item.Capaian < threshold).length;
-    return { year, tercapai, belumTercapai };
-  });
+  // Get filtered years and aspects for chart data
+  const filteredYears = yearFrom === 'all' && yearTo === 'all' ? years :
+    years.filter(year => 
+      (yearFrom === 'all' || year >= parseInt(yearFrom)) &&
+      (yearTo === 'all' || year <= parseInt(yearTo))
+    );
+  const filteredAspects = selectedAspects.length === 0 ? aspects : selectedAspects;
 
-  const donutData = selectedYear === 'all' 
-    ? [
-        { 
-          name: 'Tercapai', 
-          value: achievementData.reduce((sum, item) => sum + item.tercapai, 0),
-          color: 'hsl(var(--success))'
-        },
-        { 
-          name: 'Belum Tercapai', 
-          value: achievementData.reduce((sum, item) => sum + item.belumTercapai, 0),
-          color: 'hsl(var(--warning))'
-        }
-      ]
-    : (() => {
-        const yearData = achievementData.find(item => item.year.toString() === selectedYear);
-        return yearData ? [
-          { name: 'Tercapai', value: yearData.tercapai, color: 'hsl(var(--success))' },
-          { name: 'Belum Tercapai', value: yearData.belumTercapai, color: 'hsl(var(--warning))' }
-        ] : [];
-      })();
+  // 1. Pie Chart by Penjelasan
+  const penjelasanCounts = filteredData.reduce((acc, item) => {
+    acc[item.Penjelasan] = (acc[item.Penjelasan] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  const penjelasanData = Object.entries(penjelasanCounts).map(([key, value], index) => ({
+    name: key,
+    value,
+    color: `hsl(var(--chart-${(index % 5) + 1}))`
+  }));
 
   // 2. Skor Rata-rata Tiap Tahun
-  const avgScoreData = years.map(year => {
-    const yearData = data.filter(item => item.Tahun === year && item.Type === 'aspek');
-    const avgScore = yearData.reduce((sum, item) => sum + item.Skor, 0) / yearData.length;
+  const avgScoreData = filteredYears.map(year => {
+    const yearData = filteredData.filter(item => item.Tahun === year);
+    const avgScore = yearData.length > 0 ? yearData.reduce((sum, item) => sum + item.Skor, 0) / yearData.length : 0;
     return { year, avgScore: Number(avgScore.toFixed(2)) };
   });
 
   // 3. Skor per Aspek per Tahun
-  const aspectScoreData = aspects.map(aspect => {
-    const aspectData: any = { aspect };
-    years.forEach(year => {
+  const aspectScoreData = filteredAspects.map(aspect => {
+    const aspectData: any = { aspect: `Aspek ${aspect}` };
+    filteredYears.forEach(year => {
       const yearAspectData = data.find(item => item.No === aspect && item.Tahun === year && item.Type === 'aspek');
       aspectData[`year_${year}`] = yearAspectData ? yearAspectData.Skor : 0;
     });
@@ -85,8 +81,8 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
   });
 
   // 4. Capaian per Aspek (latest year)
-  const latestYear = Math.max(...years);
-  const achievementPerAspect = aspects.map(aspect => {
+  const latestYear = Math.max(...filteredYears);
+  const achievementPerAspect = filteredAspects.map(aspect => {
     const aspectData = data.find(item => item.No === aspect && item.Tahun === latestYear && item.Type === 'aspek');
     return {
       aspect: `Aspek ${aspect}`,
@@ -96,44 +92,119 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
     };
   });
 
+  // 5. Heatmap Data
+  const heatmapData = filteredAspects.map(aspect => {
+    const aspectData: any = { aspect: `Aspek ${aspect}` };
+    filteredYears.forEach(year => {
+      const yearAspectData = data.find(item => item.No === aspect && item.Tahun === year && item.Type === 'aspek');
+      aspectData[`year_${year}`] = yearAspectData ? yearAspectData.Capaian : 0;
+    });
+    return aspectData;
+  });
+
+  // 6. Individual Trend Data
+  const trendData = selectedAspectForTrend ? filteredYears.map(year => {
+    const yearAspectData = data.find(item => item.No === selectedAspectForTrend && item.Tahun === year && item.Type === 'aspek');
+    return { year, skor: yearAspectData ? yearAspectData.Skor : 0 };
+  }) : [];
+
+  // 7. Weight Distribution
+  const totalBobot = filteredData.reduce((sum, item) => sum + item.Bobot, 0);
+  const weightData = filteredAspects.map((aspect, index) => {
+    const aspectData = filteredData.filter(item => item.No === aspect);
+    const totalAspectBobot = aspectData.reduce((sum, item) => sum + item.Bobot, 0);
+    return {
+      name: `Aspek ${aspect}`,
+      value: Number(((totalAspectBobot / totalBobot) * 100).toFixed(1)),
+      color: `hsl(var(--chart-${(index % 5) + 1}))`
+    };
+  });
+
   return (
     <div className="space-y-6">
-      {/* Filters */}
-      <div className="flex gap-4 mb-6">
-        <Select value={selectedYear} onValueChange={setSelectedYear}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Tahun</SelectItem>
-            {years.map(year => (
-              <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={selectedAspect} onValueChange={setSelectedAspect}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Semua Aspek</SelectItem>
-            {aspects.map(aspect => (
-              <SelectItem key={aspect} value={aspect}>Aspek {aspect}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Enhanced Filters */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Filter Data</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <label className="text-sm font-medium">Tahun Dari:</label>
+              <Select value={yearFrom} onValueChange={setYearFrom}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua</SelectItem>
+                  {years.map(year => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Tahun Sampai:</label>
+              <Select value={yearTo} onValueChange={setYearTo}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Semua</SelectItem>
+                  {years.map(year => (
+                    <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <label className="text-sm font-medium">Aspek untuk Tren:</label>
+              <Select value={selectedAspectForTrend} onValueChange={setSelectedAspectForTrend}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih aspek" />
+                </SelectTrigger>
+                <SelectContent>
+                  {aspects.map(aspect => (
+                    <SelectItem key={aspect} value={aspect}>Aspek {aspect}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <div>
+            <label className="text-sm font-medium mb-2 block">Pilih Aspek (kosong = semua):</label>
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-2">
+              {aspects.map(aspect => (
+                <div key={aspect} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={aspect}
+                    checked={selectedAspects.includes(aspect)}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedAspects([...selectedAspects, aspect]);
+                      } else {
+                        setSelectedAspects(selectedAspects.filter(a => a !== aspect));
+                      }
+                    }}
+                  />
+                  <label htmlFor={aspect} className="text-sm">Aspek {aspect}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* 1. Ringkasan Umum */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Total Aspek Tercapai/Belum Tercapai</CardTitle>
-            <CardDescription>Berdasarkan threshold 85%</CardDescription>
+            <CardTitle>Distribusi Status Penilaian</CardTitle>
+            <CardDescription>Berdasarkan kolom penjelasan</CardDescription>
           </CardHeader>
           <CardContent>
-            <DonutChart data={donutData} />
+            <DonutChart data={penjelasanData} />
           </CardContent>
         </Card>
 
@@ -150,6 +221,16 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
             />
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Distribusi Bobot Antar Aspek</CardTitle>
+            <CardDescription>Persentase bobot setiap aspek</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <DonutChart data={weightData} />
+          </CardContent>
+        </Card>
       </div>
 
       {/* 2. Analisis Per Aspek */}
@@ -163,7 +244,7 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
             <BarChart 
               data={aspectScoreData}
               xKey="aspect"
-              yKeys={years.map((year, index) => ({
+              yKeys={filteredYears.map((year, index) => ({
                 key: `year_${year}`,
                 name: year.toString(),
                 color: `hsl(var(--chart-${(index % 5) + 1}))`
@@ -183,9 +264,9 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
               data={achievementPerAspect}
               xKey="aspect"
               yKeys={[
-                { key: 'bobot', name: 'Bobot', color: 'hsl(var(--muted))' },
-                { key: 'skor', name: 'Skor', color: 'hsl(var(--primary))' },
-                { key: 'capaian', name: 'Capaian (%)', color: 'hsl(var(--success))' }
+                { key: 'bobot', name: 'Bobot', color: 'hsl(var(--primary))' },
+                { key: 'skor', name: 'Skor', color: 'hsl(var(--success))' },
+                { key: 'capaian', name: 'Capaian (%)', color: 'hsl(var(--accent))' }
               ]}
               layout="vertical"
             />
@@ -193,7 +274,45 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
         </Card>
       </div>
 
-      {/* 3. Data Table */}
+      {/* 3. Heatmap dan Tren Individual */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Heatmap Capaian Aspek per Tahun</CardTitle>
+            <CardDescription>Overview capaian dari tahun ke tahun</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <BarChart 
+              data={heatmapData}
+              xKey="aspect"
+              yKeys={filteredYears.map((year, index) => ({
+                key: `year_${year}`,
+                name: year.toString(),
+                color: `hsl(var(--chart-${(index % 5) + 1}))`
+              }))}
+              layout="vertical"
+            />
+          </CardContent>
+        </Card>
+
+        {selectedAspectForTrend && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Tren Individual - Aspek {selectedAspectForTrend}</CardTitle>
+              <CardDescription>Perubahan skor dari tahun ke tahun</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LineChart 
+                data={trendData}
+                xKey="year"
+                yKeys={[{ key: 'skor', name: 'Skor', color: 'hsl(var(--success))' }]}
+              />
+            </CardContent>
+          </Card>
+        )}
+      </div>
+
+      {/* 4. Data Table */}
       <Card>
         <CardHeader>
           <CardTitle>Data Detail Aspek</CardTitle>
@@ -223,8 +342,10 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
                     <TableCell>{item.Capaian.toFixed(2)}%</TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs ${
-                        item.Capaian >= threshold 
+                        item.Penjelasan.toLowerCase().includes('sangat baik') || item.Penjelasan.toLowerCase().includes('excellent') 
                           ? 'bg-success/10 text-success-foreground' 
+                          : item.Penjelasan.toLowerCase().includes('baik') || item.Penjelasan.toLowerCase().includes('good')
+                          ? 'bg-primary/10 text-primary-foreground'
                           : 'bg-warning/10 text-warning-foreground'
                       }`}>
                         {item.Penjelasan}
