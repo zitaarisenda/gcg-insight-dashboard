@@ -18,6 +18,14 @@ const Index = () => {
     }
   };
 
+  const handleDeleteAspectData = () => {
+    setAspectData([]);
+  };
+
+  const handleDeleteIndicatorData = () => {
+    setIndicatorData([]);
+  };
+
   const hasData = aspectData.length > 0 || indicatorData.length > 0;
 
   return (
@@ -164,7 +172,7 @@ const Index = () => {
 
               <TabsContent value="aspect">
                 {aspectData.length > 0 ? (
-                  <AspectDashboard data={aspectData} />
+                  <AspectDashboard data={aspectData} onDeleteData={handleDeleteAspectData} />
                 ) : (
                   <Card>
                     <CardContent className="p-8 text-center">
@@ -176,7 +184,7 @@ const Index = () => {
 
               <TabsContent value="indicator">
                 {indicatorData.length > 0 ? (
-                  <IndicatorDashboard data={indicatorData} />
+                  <IndicatorDashboard data={indicatorData} onDeleteData={handleDeleteIndicatorData} />
                 ) : (
                   <Card>
                     <CardContent className="p-8 text-center">

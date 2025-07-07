@@ -23,9 +23,10 @@ interface IndicatorData {
 
 interface IndicatorDashboardProps {
   data: IndicatorData[];
+  onDeleteData?: () => void;
 }
 
-export const IndicatorDashboard = ({ data }: IndicatorDashboardProps) => {
+export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardProps) => {
   const [yearFrom, setYearFrom] = useState<string>('all');
   const [yearTo, setYearTo] = useState<string>('all');
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
@@ -125,8 +126,16 @@ export const IndicatorDashboard = ({ data }: IndicatorDashboardProps) => {
     <div className="space-y-6">
       {/* Enhanced Filters */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Filter Data</CardTitle>
+          {onDeleteData && (
+            <button
+              onClick={onDeleteData}
+              className="px-3 py-1 text-sm bg-destructive text-destructive-foreground rounded hover:bg-destructive/90"
+            >
+              Hapus Dataset
+            </button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
@@ -306,31 +315,6 @@ export const IndicatorDashboard = ({ data }: IndicatorDashboardProps) => {
         </div>
       </div>
 
-      {/* 5. Progress Charts per Aspek */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Progress Capaian per Indikator dalam Tiap Aspek</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {aspectProgressCharts.map(({ section, data }) => (
-            <Card key={section}>
-              <CardHeader>
-                <CardTitle className="text-base">Aspek {section}</CardTitle>
-                <CardDescription>Capaian per indikator</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <BarChart 
-                  data={data}
-                  xKey="indicator"
-                  yKeys={[
-                    { key: 'capaian', name: 'Capaian (%)', color: 'hsl(var(--success))' },
-                    { key: 'skor', name: 'Skor', color: 'hsl(var(--primary))' }
-                  ]}
-                  layout="vertical"
-                />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </div>
 
       {/* 6. Data Table */}
       <Card>

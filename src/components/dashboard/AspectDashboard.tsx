@@ -20,17 +20,18 @@ interface AspectData {
 
 interface AspectDashboardProps {
   data: AspectData[];
+  onDeleteData?: () => void;
 }
 
-export const AspectDashboard = ({ data }: AspectDashboardProps) => {
+export const AspectDashboard = ({ data, onDeleteData }: AspectDashboardProps) => {
   const [yearFrom, setYearFrom] = useState<string>('all');
   const [yearTo, setYearTo] = useState<string>('all');
   const [selectedAspects, setSelectedAspects] = useState<string[]>([]);
   const [selectedAspectForTrend, setSelectedAspectForTrend] = useState<string>('');
 
-  // Get unique years and aspects
-  const years = [...new Set(data.filter(item => item.Type === 'aspek').map(item => item.Tahun))].sort();
-  const aspects = [...new Set(data.filter(item => item.Type === 'aspek').map(item => item.No))].sort();
+  // Get unique years and aspects - ensure we read ALL data
+  const years = [...new Set(data.map(item => item.Tahun))].sort();
+  const aspects = [...new Set(data.map(item => item.No))].sort();
 
   // Filter data based on selections
   const filteredData = data.filter(item => {
@@ -124,8 +125,16 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
     <div className="space-y-6">
       {/* Enhanced Filters */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Filter Data</CardTitle>
+          {onDeleteData && (
+            <button
+              onClick={onDeleteData}
+              className="px-3 py-1 text-sm bg-destructive text-destructive-foreground rounded hover:bg-destructive/90"
+            >
+              Hapus Dataset
+            </button>
+          )}
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -274,43 +283,22 @@ export const AspectDashboard = ({ data }: AspectDashboardProps) => {
         </Card>
       </div>
 
-      {/* 3. Heatmap dan Tren Individual */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* 3. Tren Individual */}
+      {selectedAspectForTrend && (
         <Card>
           <CardHeader>
-            <CardTitle>Heatmap Capaian Aspek per Tahun</CardTitle>
-            <CardDescription>Overview capaian dari tahun ke tahun</CardDescription>
+            <CardTitle>Tren Individual - Aspek {selectedAspectForTrend}</CardTitle>
+            <CardDescription>Perubahan skor dari tahun ke tahun</CardDescription>
           </CardHeader>
           <CardContent>
-            <BarChart 
-              data={heatmapData}
-              xKey="aspect"
-              yKeys={filteredYears.map((year, index) => ({
-                key: `year_${year}`,
-                name: year.toString(),
-                color: `hsl(var(--chart-${(index % 5) + 1}))`
-              }))}
-              layout="vertical"
+            <LineChart 
+              data={trendData}
+              xKey="year"
+              yKeys={[{ key: 'skor', name: 'Skor', color: 'hsl(var(--success))' }]}
             />
           </CardContent>
         </Card>
-
-        {selectedAspectForTrend && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Tren Individual - Aspek {selectedAspectForTrend}</CardTitle>
-              <CardDescription>Perubahan skor dari tahun ke tahun</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <LineChart 
-                data={trendData}
-                xKey="year"
-                yKeys={[{ key: 'skor', name: 'Skor', color: 'hsl(var(--success))' }]}
-              />
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      )}
 
       {/* 4. Data Table */}
       <Card>
