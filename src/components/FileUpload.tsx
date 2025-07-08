@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
+import * as XLSX from 'xlsx';
 
 interface FileUploadProps {
   onDataUpload: (data: any[], dataType: 'aspect' | 'indicator') => void;
@@ -16,25 +17,109 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
   const [linkUrl, setLinkUrl] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const readFile = (file: File): Promise<any[]> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const data = e.target?.result;
+          if (!data) {
+            reject(new Error('File tidak dapat dibaca'));
+            return;
+          }
+
+          let jsonData: any[] = [];
+          
+          if (file.name.endsWith('.csv')) {
+            // Parse CSV
+            const text = data as string;
+            const lines = text.split('\n').filter(line => line.trim());
+            if (lines.length < 2) {
+              reject(new Error('File CSV harus memiliki header dan minimal 1 baris data'));
+              return;
+            }
+            
+            const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+            jsonData = lines.slice(1).map(line => {
+              const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+              const obj: any = {};
+              headers.forEach((header, index) => {
+                const value = values[index] || '';
+                // Try to convert to number if possible
+                if (!isNaN(Number(value)) && value !== '') {
+                  obj[header] = Number(value);
+                } else {
+                  obj[header] = value;
+                }
+              });
+              return obj;
+            });
+          } else if (file.name.endsWith('.xlsx')) {
+            // Parse Excel
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            jsonData = XLSX.utils.sheet_to_json(worksheet);
+          } else {
+            reject(new Error('Format file tidak didukung. Gunakan .xlsx atau .csv'));
+            return;
+          }
+
+          resolve(jsonData);
+        } catch (error) {
+          reject(new Error('Gagal memproses file: ' + (error instanceof Error ? error.message : 'Unknown error')));
+        }
+      };
+      
+      reader.onerror = () => {
+        reject(new Error('Gagal membaca file'));
+      };
+
+      if (file.name.endsWith('.csv')) {
+        reader.readAsText(file);
+      } else {
+        reader.readAsBinaryString(file);
+      }
+    });
+  };
+
   const handleFileUpload = async (file: File, dataType: 'aspect' | 'indicator') => {
     setIsLoading(true);
     try {
-      // Simulate file processing
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // In a real implementation, you would parse the Excel/CSV file here
-      // For now, we'll simulate with sample data
-      const sampleData = generateSampleData(dataType);
-      onDataUpload(sampleData, dataType);
+      const data = await readFile(file);
+      if (!data || data.length === 0) {
+        throw new Error('File kosong atau format tidak valid');
+      }
+
+      // Validate required columns
+      if (dataType === 'aspect') {
+        const requiredColumns = ['Type', 'No', 'Deskripsi', 'Bobot', 'Skor', 'Capaian', 'Penjelasan', 'Tahun'];
+        const hasRequiredColumns = requiredColumns.every(col => 
+          data[0].hasOwnProperty(col)
+        );
+        if (!hasRequiredColumns) {
+          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
+        }
+      } else {
+        const requiredColumns = ['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
+        const hasRequiredColumns = requiredColumns.every(col => 
+          data[0].hasOwnProperty(col)
+        );
+        if (!hasRequiredColumns) {
+          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
+        }
+      }
+
+      onDataUpload(data, dataType);
       
       toast({
         title: "File berhasil diupload",
-        description: `Data ${dataType === 'aspect' ? 'Keseluruhan Aspek' : 'Per Indikator'} telah diproses`,
+        description: `${data.length} baris data ${dataType === 'aspect' ? 'Keseluruhan Aspek' : 'Per Indikator'} telah diproses`,
       });
     } catch (error) {
       toast({
         title: "Error",
-        description: "Gagal memproses file. Pastikan format file sudah benar.",
+        description: error instanceof Error ? error.message : "Gagal memproses file. Pastikan format file sudah benar.",
         variant: "destructive",
       });
     } finally {
@@ -47,21 +132,95 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
     
     setIsLoading(true);
     try {
-      // In a real implementation, you would fetch data from the URL
-      // For now, we'll simulate with sample data
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const sampleData = generateSampleData(dataType);
-      onDataUpload(sampleData, dataType);
+      // Validate URL format
+      try {
+        new URL(linkUrl);
+      } catch {
+        throw new Error('Format URL tidak valid');
+      }
+
+      // Fetch data from URL
+      const response = await fetch(linkUrl, {
+        mode: 'cors',
+        headers: {
+          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,*/*'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const contentType = response.headers.get('content-type') || '';
+      let data: any[] = [];
+
+      if (contentType.includes('text/csv') || linkUrl.endsWith('.csv')) {
+        // Handle CSV
+        const text = await response.text();
+        const lines = text.split('\n').filter(line => line.trim());
+        if (lines.length < 2) {
+          throw new Error('File CSV harus memiliki header dan minimal 1 baris data');
+        }
+        
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+        data = lines.slice(1).map(line => {
+          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
+          const obj: any = {};
+          headers.forEach((header, index) => {
+            const value = values[index] || '';
+            if (!isNaN(Number(value)) && value !== '') {
+              obj[header] = Number(value);
+            } else {
+              obj[header] = value;
+            }
+          });
+          return obj;
+        });
+      } else if (contentType.includes('spreadsheetml') || linkUrl.endsWith('.xlsx')) {
+        // Handle Excel
+        const arrayBuffer = await response.arrayBuffer();
+        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        data = XLSX.utils.sheet_to_json(worksheet);
+      } else {
+        throw new Error('Format file tidak didukung. URL harus mengarah ke file .xlsx atau .csv');
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error('File kosong atau format tidak valid');
+      }
+
+      // Validate required columns
+      if (dataType === 'aspect') {
+        const requiredColumns = ['Type', 'No', 'Deskripsi', 'Bobot', 'Skor', 'Capaian', 'Penjelasan', 'Tahun'];
+        const hasRequiredColumns = requiredColumns.every(col => 
+          data[0].hasOwnProperty(col)
+        );
+        if (!hasRequiredColumns) {
+          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
+        }
+      } else {
+        const requiredColumns = ['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
+        const hasRequiredColumns = requiredColumns.every(col => 
+          data[0].hasOwnProperty(col)
+        );
+        if (!hasRequiredColumns) {
+          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
+        }
+      }
+
+      onDataUpload(data, dataType);
       
       toast({
         title: "Data berhasil diambil",
-        description: `Data dari link telah diproses`,
+        description: `${data.length} baris data dari link telah diproses`,
       });
       setLinkUrl('');
     } catch (error) {
       toast({
         title: "Error",
-        description: "Gagal mengambil data dari link",
+        description: error instanceof Error ? error.message : "Gagal mengambil data dari link",
         variant: "destructive",
       });
     } finally {
