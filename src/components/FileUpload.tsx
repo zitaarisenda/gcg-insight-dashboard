@@ -56,10 +56,35 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
             });
           } else if (file.name.endsWith('.xlsx')) {
             // Parse Excel
+            console.log('Parsing Excel file...');
             const workbook = XLSX.read(data, { type: 'binary' });
+            console.log('Workbook sheets:', workbook.SheetNames);
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
             jsonData = XLSX.utils.sheet_to_json(worksheet);
+            console.log('Raw Excel data length:', jsonData.length);
+            console.log('Raw first row:', jsonData[0]);
+            
+            // Handle column name variations and data cleaning
+            jsonData = jsonData.map(row => {
+              const newRow = { ...row };
+              
+              // Map Aspek_Pengujian to Deskripsi if it exists
+              if (newRow.hasOwnProperty('Aspek_Pengujian') && !newRow.hasOwnProperty('Deskripsi')) {
+                newRow.Deskripsi = newRow.Aspek_Pengujian;
+                delete newRow.Aspek_Pengujian;
+              }
+              
+              // Clean percentage values (remove % symbol and convert to number)
+              if (newRow.Capaian && typeof newRow.Capaian === 'string' && newRow.Capaian.includes('%')) {
+                const numValue = parseFloat(newRow.Capaian.replace('%', '').trim());
+                newRow.Capaian = isNaN(numValue) ? newRow.Capaian : numValue;
+              }
+              
+              return newRow;
+            });
+            console.log('After column mapping, first row:', jsonData[0]);
+            console.log('After mapping, first row keys:', jsonData[0] ? Object.keys(jsonData[0]) : 'No data');
           } else {
             reject(new Error('Format file tidak didukung. Gunakan .xlsx atau .csv'));
             return;
@@ -85,28 +110,50 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
 
   const handleFileUpload = async (file: File, dataType: 'aspect' | 'indicator') => {
     setIsLoading(true);
+    console.log('Starting file upload for:', file.name, 'Type:', dataType);
     try {
       const data = await readFile(file);
+      console.log('File read successfully. Data length:', data?.length);
+      console.log('First row keys:', data?.[0] ? Object.keys(data[0]) : 'No data');
+      console.log('First row sample:', data?.[0]);
+      
       if (!data || data.length === 0) {
         throw new Error('File kosong atau format tidak valid');
       }
 
-      // Validate required columns
+      // Validate required columns using appropriate row type
       if (dataType === 'aspect') {
+        // For aspect data, find first row with Type='aspek'
+        const aspectRow = data.find(row => row.Type === 'aspek');
+        if (!aspectRow) {
+          throw new Error('File tidak mengandung data aspek. Pastikan ada baris dengan Type="aspek"');
+        }
+        
         const requiredColumns = ['Type', 'No', 'Deskripsi', 'Bobot', 'Skor', 'Capaian', 'Penjelasan', 'Tahun'];
-        const hasRequiredColumns = requiredColumns.every(col => 
-          data[0].hasOwnProperty(col)
-        );
-        if (!hasRequiredColumns) {
-          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
+        const actualColumns = Object.keys(aspectRow);
+        const missingColumns = requiredColumns.filter(col => !aspectRow.hasOwnProperty(col));
+        
+        if (missingColumns.length > 0) {
+          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}.\nKolom yang hilang: ${missingColumns.join(', ')}.\nKolom yang ditemukan: ${actualColumns.join(', ')}`);
         }
       } else {
+        // For indicator data, find first row with Level=2 (indicator row)
+        const indicatorRow = data.find(row => row.Level === 2);
+        if (!indicatorRow) {
+          throw new Error('File tidak mengandung data indikator. Pastikan ada baris dengan Level=2');
+        }
+        
         const requiredColumns = ['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
-        const hasRequiredColumns = requiredColumns.every(col => 
-          data[0].hasOwnProperty(col)
-        );
-        if (!hasRequiredColumns) {
-          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
+        const actualColumns = Object.keys(indicatorRow);
+        const missingColumns = requiredColumns.filter(col => !indicatorRow.hasOwnProperty(col));
+        
+        console.log('Validating indicator row:', indicatorRow);
+        console.log('Required columns:', requiredColumns);
+        console.log('Actual columns:', actualColumns);
+        console.log('Missing columns:', missingColumns);
+        
+        if (missingColumns.length > 0) {
+          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}.\nKolom yang hilang: ${missingColumns.join(', ')}.\nKolom yang ditemukan: ${actualColumns.join(', ')}`);
         }
       }
 
