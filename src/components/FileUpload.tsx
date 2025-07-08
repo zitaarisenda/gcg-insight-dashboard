@@ -101,7 +101,7 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
           throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
         }
       } else {
-        const requiredColumns = ['Type', 'Section', 'No', 'Deskripsi', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
+        const requiredColumns = ['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
         const hasRequiredColumns = requiredColumns.every(col => 
           data[0].hasOwnProperty(col)
         );
@@ -197,7 +197,7 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
           <TabsContent value="indicator" className="space-y-4">
             <Alert>
               <AlertDescription>
-                Upload data yang berisi kolom: Type, Section, No, Deskripsi, Bobot, Skor, Capaian, Tahun
+                Upload data yang berisi kolom: Level, Type, Section, No, Deskripsi, Jumlah_Parameter, Bobot, Skor, Capaian, Tahun
               </AlertDescription>
             </Alert>
             

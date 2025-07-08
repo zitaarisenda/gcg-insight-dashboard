@@ -95,14 +95,14 @@ export const AspectDashboard = ({ data, onDeleteData }: AspectDashboardProps) =>
     return aspectData;
   });
 
-  // 4. Capaian per Aspek dari Tahun ke Tahun (Line Chart)
-  const aspectAchievementTrend = filteredAspects.map(aspect => {
-    const trendData: any = { aspect: `Aspek ${aspect}` };
-    filteredYears.forEach(year => {
+  // 4. Capaian per Aspek dari Tahun ke Tahun (Line Chart) - Y: Capaian, X: Tahun
+  const aspectAchievementTrendByYear = filteredYears.map(year => {
+    const yearData: any = { year };
+    filteredAspects.forEach(aspect => {
       const yearAspectData = cleanedData.find(item => item.No === aspect && item.Tahun === year);
-      trendData[`year_${year}`] = yearAspectData ? yearAspectData.Capaian : 0;
+      yearData[`aspek_${aspect}`] = yearAspectData ? yearAspectData.Capaian : 0;
     });
-    return trendData;
+    return yearData;
   });
 
   // 5. Individual Trend Data
@@ -236,15 +236,15 @@ export const AspectDashboard = ({ data, onDeleteData }: AspectDashboardProps) =>
         <Card>
           <CardHeader>
             <CardTitle>Capaian Tiap Aspek dari Tahun ke Tahun</CardTitle>
-            <CardDescription>Tren capaian per aspek</CardDescription>
+            <CardDescription>Tren capaian per aspek (Y: Capaian, X: Tahun)</CardDescription>
           </CardHeader>
           <CardContent>
             <LineChart 
-              data={aspectAchievementTrend}
-              xKey="aspect"
-              yKeys={filteredYears.map((year, index) => ({
-                key: `year_${year}`,
-                name: year.toString(),
+              data={aspectAchievementTrendByYear}
+              xKey="year"
+              yKeys={filteredAspects.map((aspect, index) => ({
+                key: `aspek_${aspect}`,
+                name: `Aspek ${aspect}`,
                 color: `hsl(var(--chart-${(index % 5) + 1}))`
               }))}
             />
@@ -331,12 +331,12 @@ export const AspectDashboard = ({ data, onDeleteData }: AspectDashboardProps) =>
                     <TableCell>{item.Skor.toFixed(3)}</TableCell>
                     <TableCell>{item.Capaian.toFixed(2)}%</TableCell>
                     <TableCell>
-                      <span className={`px-2 py-1 rounded-full text-xs ${
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                         item.Penjelasan.toLowerCase().includes('sangat baik') || item.Penjelasan.toLowerCase().includes('excellent') 
-                          ? 'bg-success/10 text-success-foreground' 
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100' 
                           : item.Penjelasan.toLowerCase().includes('baik') || item.Penjelasan.toLowerCase().includes('good')
-                          ? 'bg-primary/10 text-primary-foreground'
-                          : 'bg-warning/10 text-warning-foreground'
+                          ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
+                          : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
                       }`}>
                         {item.Penjelasan}
                       </span>
