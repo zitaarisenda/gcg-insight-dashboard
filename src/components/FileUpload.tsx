@@ -14,7 +14,7 @@ interface FileUploadProps {
 
 export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
   const [isLoading, setIsLoading] = useState(false);
-  const [linkUrl, setLinkUrl] = useState('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const readFile = (file: File): Promise<any[]> => {
@@ -101,7 +101,7 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
           throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
         }
       } else {
-        const requiredColumns = ['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
+        const requiredColumns = ['Type', 'Section', 'No', 'Deskripsi', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
         const hasRequiredColumns = requiredColumns.every(col => 
           data[0].hasOwnProperty(col)
         );
@@ -127,106 +127,6 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
     }
   };
 
-  const handleLinkSubmit = async (dataType: 'aspect' | 'indicator') => {
-    if (!linkUrl) return;
-    
-    setIsLoading(true);
-    try {
-      // Validate URL format
-      try {
-        new URL(linkUrl);
-      } catch {
-        throw new Error('Format URL tidak valid');
-      }
-
-      // Fetch data from URL
-      const response = await fetch(linkUrl, {
-        mode: 'cors',
-        headers: {
-          'Accept': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,*/*'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const contentType = response.headers.get('content-type') || '';
-      let data: any[] = [];
-
-      if (contentType.includes('text/csv') || linkUrl.endsWith('.csv')) {
-        // Handle CSV
-        const text = await response.text();
-        const lines = text.split('\n').filter(line => line.trim());
-        if (lines.length < 2) {
-          throw new Error('File CSV harus memiliki header dan minimal 1 baris data');
-        }
-        
-        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-        data = lines.slice(1).map(line => {
-          const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-          const obj: any = {};
-          headers.forEach((header, index) => {
-            const value = values[index] || '';
-            if (!isNaN(Number(value)) && value !== '') {
-              obj[header] = Number(value);
-            } else {
-              obj[header] = value;
-            }
-          });
-          return obj;
-        });
-      } else if (contentType.includes('spreadsheetml') || linkUrl.endsWith('.xlsx')) {
-        // Handle Excel
-        const arrayBuffer = await response.arrayBuffer();
-        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        data = XLSX.utils.sheet_to_json(worksheet);
-      } else {
-        throw new Error('Format file tidak didukung. URL harus mengarah ke file .xlsx atau .csv');
-      }
-
-      if (!data || data.length === 0) {
-        throw new Error('File kosong atau format tidak valid');
-      }
-
-      // Validate required columns
-      if (dataType === 'aspect') {
-        const requiredColumns = ['Type', 'No', 'Deskripsi', 'Bobot', 'Skor', 'Capaian', 'Penjelasan', 'Tahun'];
-        const hasRequiredColumns = requiredColumns.every(col => 
-          data[0].hasOwnProperty(col)
-        );
-        if (!hasRequiredColumns) {
-          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
-        }
-      } else {
-        const requiredColumns = ['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
-        const hasRequiredColumns = requiredColumns.every(col => 
-          data[0].hasOwnProperty(col)
-        );
-        if (!hasRequiredColumns) {
-          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}`);
-        }
-      }
-
-      onDataUpload(data, dataType);
-      
-      toast({
-        title: "Data berhasil diambil",
-        description: `${data.length} baris data dari link telah diproses`,
-      });
-      setLinkUrl('');
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Gagal mengambil data dari link",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   const generateSampleData = (dataType: 'aspect' | 'indicator') => {
     if (dataType === 'aspect') {
@@ -291,37 +191,13 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
                 />
               </div>
               
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-border"></div>
-                <span className="text-sm text-muted-foreground">atau</span>
-                <div className="flex-1 h-px bg-border"></div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="aspect-link">Link ke File</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="aspect-link"
-                    placeholder="https://example.com/data.xlsx"
-                    value={linkUrl}
-                    onChange={(e) => setLinkUrl(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  <Button 
-                    onClick={() => handleLinkSubmit('aspect')}
-                    disabled={isLoading || !linkUrl}
-                  >
-                    {isLoading ? 'Processing...' : 'Upload'}
-                  </Button>
-                </div>
-              </div>
             </div>
           </TabsContent>
           
           <TabsContent value="indicator" className="space-y-4">
             <Alert>
               <AlertDescription>
-                Upload data yang berisi kolom: Level, Type, Section, No, Deskripsi, Jumlah_Parameter, Bobot, Skor, Capaian, Tahun
+                Upload data yang berisi kolom: Type, Section, No, Deskripsi, Bobot, Skor, Capaian, Tahun
               </AlertDescription>
             </Alert>
             
@@ -340,30 +216,6 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
                 />
               </div>
               
-              <div className="flex items-center gap-2">
-                <div className="flex-1 h-px bg-border"></div>
-                <span className="text-sm text-muted-foreground">atau</span>
-                <div className="flex-1 h-px bg-border"></div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="indicator-link">Link ke File</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="indicator-link"
-                    placeholder="https://example.com/data.xlsx"
-                    value={linkUrl}
-                    onChange={(e) => setLinkUrl(e.target.value)}
-                    disabled={isLoading}
-                  />
-                  <Button 
-                    onClick={() => handleLinkSubmit('indicator')}
-                    disabled={isLoading || !linkUrl}
-                  >
-                    {isLoading ? 'Processing...' : 'Upload'}
-                  </Button>
-                </div>
-              </div>
             </div>
           </TabsContent>
         </Tabs>

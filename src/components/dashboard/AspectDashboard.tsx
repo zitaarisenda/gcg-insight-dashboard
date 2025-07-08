@@ -29,19 +29,33 @@ export const AspectDashboard = ({ data, onDeleteData }: AspectDashboardProps) =>
   const [selectedAspects, setSelectedAspects] = useState<string[]>([]);
   const [selectedAspectForTrend, setSelectedAspectForTrend] = useState<string>('');
 
+  // Helper function to parse numeric values and handle invalid data
+  const parseNumericValue = (value: any): number => {
+    if (value === '-' || value === '' || value == null) return 0;
+    const num = Number(value);
+    return isNaN(num) ? 0 : num;
+  };
+
+  // Clean and filter data - only include rows where Type = 'aspek'
+  const cleanedData = data.filter(item => item.Type === 'aspek').map(item => ({
+    ...item,
+    Bobot: parseNumericValue(item.Bobot),
+    Skor: parseNumericValue(item.Skor),
+    Capaian: parseNumericValue(item.Capaian)
+  }));
+
   // Get unique years and aspects - ensure we read ALL data
-  const years = [...new Set(data.map(item => item.Tahun))].sort();
-  const aspects = [...new Set(data.map(item => item.No))].sort();
+  const years = [...new Set(cleanedData.map(item => item.Tahun))].sort();
+  const aspects = [...new Set(cleanedData.map(item => item.No))].sort();
 
   // Filter data based on selections
-  const filteredData = data.filter(item => {
-    const aspectData = item.Type === 'aspek';
+  const filteredData = cleanedData.filter(item => {
     const yearMatch = (yearFrom === 'all' && yearTo === 'all') || 
       (yearFrom === 'all' ? item.Tahun <= parseInt(yearTo) : 
        yearTo === 'all' ? item.Tahun >= parseInt(yearFrom) :
        item.Tahun >= parseInt(yearFrom) && item.Tahun <= parseInt(yearTo));
     const aspectMatch = selectedAspects.length === 0 || selectedAspects.includes(item.No);
-    return aspectData && yearMatch && aspectMatch;
+    return yearMatch && aspectMatch;
   });
 
   // Get filtered years and aspects for chart data
@@ -75,41 +89,29 @@ export const AspectDashboard = ({ data, onDeleteData }: AspectDashboardProps) =>
   const aspectScoreData = filteredAspects.map(aspect => {
     const aspectData: any = { aspect: `Aspek ${aspect}` };
     filteredYears.forEach(year => {
-      const yearAspectData = data.find(item => item.No === aspect && item.Tahun === year && item.Type === 'aspek');
+      const yearAspectData = cleanedData.find(item => item.No === aspect && item.Tahun === year);
       aspectData[`year_${year}`] = yearAspectData ? yearAspectData.Skor : 0;
     });
     return aspectData;
   });
 
-  // 4. Capaian per Aspek (latest year)
-  const latestYear = Math.max(...filteredYears);
-  const achievementPerAspect = filteredAspects.map(aspect => {
-    const aspectData = data.find(item => item.No === aspect && item.Tahun === latestYear && item.Type === 'aspek');
-    return {
-      aspect: `Aspek ${aspect}`,
-      bobot: aspectData?.Bobot || 0,
-      skor: aspectData?.Skor || 0,
-      capaian: aspectData?.Capaian || 0
-    };
-  });
-
-  // 5. Heatmap Data
-  const heatmapData = filteredAspects.map(aspect => {
-    const aspectData: any = { aspect: `Aspek ${aspect}` };
+  // 4. Capaian per Aspek dari Tahun ke Tahun (Line Chart)
+  const aspectAchievementTrend = filteredAspects.map(aspect => {
+    const trendData: any = { aspect: `Aspek ${aspect}` };
     filteredYears.forEach(year => {
-      const yearAspectData = data.find(item => item.No === aspect && item.Tahun === year && item.Type === 'aspek');
-      aspectData[`year_${year}`] = yearAspectData ? yearAspectData.Capaian : 0;
+      const yearAspectData = cleanedData.find(item => item.No === aspect && item.Tahun === year);
+      trendData[`year_${year}`] = yearAspectData ? yearAspectData.Capaian : 0;
     });
-    return aspectData;
+    return trendData;
   });
 
-  // 6. Individual Trend Data
+  // 5. Individual Trend Data
   const trendData = selectedAspectForTrend ? filteredYears.map(year => {
-    const yearAspectData = data.find(item => item.No === selectedAspectForTrend && item.Tahun === year && item.Type === 'aspek');
+    const yearAspectData = cleanedData.find(item => item.No === selectedAspectForTrend && item.Tahun === year);
     return { year, skor: yearAspectData ? yearAspectData.Skor : 0 };
   }) : [];
 
-  // 7. Weight Distribution
+  // 6. Weight Distribution
   const totalBobot = filteredData.reduce((sum, item) => sum + item.Bobot, 0);
   const weightData = filteredAspects.map((aspect, index) => {
     const aspectData = filteredData.filter(item => item.No === aspect);
@@ -233,6 +235,24 @@ export const AspectDashboard = ({ data, onDeleteData }: AspectDashboardProps) =>
 
         <Card>
           <CardHeader>
+            <CardTitle>Capaian Tiap Aspek dari Tahun ke Tahun</CardTitle>
+            <CardDescription>Tren capaian per aspek</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <LineChart 
+              data={aspectAchievementTrend}
+              xKey="aspect"
+              yKeys={filteredYears.map((year, index) => ({
+                key: `year_${year}`,
+                name: year.toString(),
+                color: `hsl(var(--chart-${(index % 5) + 1}))`
+              }))}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
             <CardTitle>Distribusi Bobot Antar Aspek</CardTitle>
             <CardDescription>Persentase bobot setiap aspek</CardDescription>
           </CardHeader>
@@ -263,24 +283,6 @@ export const AspectDashboard = ({ data, onDeleteData }: AspectDashboardProps) =>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Capaian per Aspek ({latestYear})</CardTitle>
-            <CardDescription>Perbandingan bobot, skor, dan capaian</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <BarChart 
-              data={achievementPerAspect}
-              xKey="aspect"
-              yKeys={[
-                { key: 'bobot', name: 'Bobot', color: 'hsl(var(--primary))' },
-                { key: 'skor', name: 'Skor', color: 'hsl(var(--success))' },
-                { key: 'capaian', name: 'Capaian (%)', color: 'hsl(var(--accent))' }
-              ]}
-              layout="vertical"
-            />
-          </CardContent>
-        </Card>
       </div>
 
       {/* 3. Tren Individual */}

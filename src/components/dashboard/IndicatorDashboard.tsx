@@ -33,12 +33,15 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
   const [minCapaian, setMinCapaian] = useState<string>('');
   const [maxCapaian, setMaxCapaian] = useState<string>('');
 
-  // Get unique years and sections
-  const years = [...new Set(data.map(item => item.Tahun))].sort();
-  const sections = [...new Set(data.map(item => item.Section))].sort();
+  // Filter data to get indicators only (Type = "indicator")
+  const indicatorData = data.filter(item => item.Type === 'indicator');
+  
+  // Get unique years and sections from indicator data
+  const years = [...new Set(indicatorData.map(item => item.Tahun))].sort();
+  const sections = [...new Set(indicatorData.map(item => item.Section))].sort();
 
-  // Filter data
-  const filteredData = data.filter(item => {
+  // Filter indicator data
+  const filteredData = indicatorData.filter(item => {
     const yearMatch = (yearFrom === 'all' && yearTo === 'all') || 
       (yearFrom === 'all' ? item.Tahun <= parseInt(yearTo) : 
        yearTo === 'all' ? item.Tahun >= parseInt(yearFrom) :
@@ -76,7 +79,7 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
   const yearComparison = filteredYears.map(year => {
     const result: any = { year };
     filteredSections.forEach(section => {
-      const sectionYearData = data.filter(item => item.Tahun === year && item.Section === section);
+      const sectionYearData = indicatorData.filter(item => item.Tahun === year && item.Section === section);
       const totalSkor = sectionYearData.reduce((sum, item) => sum + item.Skor, 0);
       const totalBobot = sectionYearData.reduce((sum, item) => sum + item.Bobot, 0);
       const capaian = totalBobot > 0 ? (totalSkor / totalBobot) * 100 : 0;
