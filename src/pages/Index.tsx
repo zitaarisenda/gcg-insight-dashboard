@@ -3,30 +3,36 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileUpload } from '@/components/FileUpload';
-import { AspectDashboard } from '@/components/dashboard/AspectDashboard';
 import { IndicatorDashboard } from '@/components/dashboard/IndicatorDashboard';
 
+interface DataRow {
+  Level?: number;
+  Type?: string;
+  Section?: string;
+  No?: number | string;
+  Deskripsi?: string;
+  Aspek_Pengujian?: string;
+  Jumlah_Parameter?: number;
+  Bobot?: number;
+  Skor?: number;
+  Capaian?: number | string;
+  Penjelasan?: string;
+  Tahun?: number;
+  [key: string]: unknown;
+}
+
 const Index = () => {
-  const [aspectData, setAspectData] = useState<any[]>([]);
-  const [indicatorData, setIndicatorData] = useState<any[]>([]);
+  const [data, setData] = useState<DataRow[]>([]);
 
-  const handleDataUpload = (data: any[], dataType: 'aspect' | 'indicator') => {
-    if (dataType === 'aspect') {
-      setAspectData(data);
-    } else {
-      setIndicatorData(data);
-    }
+  const handleDataUpload = (uploadedData: DataRow[]) => {
+    setData(uploadedData);
   };
 
-  const handleDeleteAspectData = () => {
-    setAspectData([]);
+  const handleDeleteData = () => {
+    setData([]);
   };
 
-  const handleDeleteIndicatorData = () => {
-    setIndicatorData([]);
-  };
-
-  const hasData = aspectData.length > 0 || indicatorData.length > 0;
+  const hasData = data.length > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted/20">
@@ -109,7 +115,7 @@ const Index = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm opacity-90">Data Aspek</p>
-                      <p className="text-2xl font-bold">{aspectData.length}</p>
+                      <p className="text-2xl font-bold">{data.filter(item => item.Type === 'header').length}</p>
                     </div>
                     <div className="text-3xl opacity-80">📊</div>
                   </div>
@@ -121,7 +127,7 @@ const Index = () => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm opacity-90">Data Indikator</p>
-                      <p className="text-2xl font-bold">{indicatorData.length}</p>
+                      <p className="text-2xl font-bold">{data.filter(item => item.Type === 'indicator').length}</p>
                     </div>
                     <div className="text-3xl opacity-80">🎯</div>
                   </div>
@@ -134,8 +140,8 @@ const Index = () => {
                     <div>
                       <p className="text-sm text-muted-foreground">Tahun Data</p>
                       <p className="text-2xl font-bold">
-                        {aspectData.length > 0 
-                          ? [...new Set([...aspectData, ...indicatorData].map(item => item.Tahun))].join(', ')
+                        {data.length > 0 
+                          ? [...new Set(data.map(item => item.Tahun))].join(', ')
                           : '-'
                         }
                       </p>
@@ -159,36 +165,21 @@ const Index = () => {
             </div>
 
             {/* Main Dashboard */}
-            <Tabs defaultValue={aspectData.length > 0 ? "aspect" : "indicator"} className="w-full">
+            <Tabs defaultValue="dashboard" className="w-full">
               <TabsList className="mb-6">
-                <TabsTrigger value="aspect" disabled={aspectData.length === 0}>
-                  Dashboard Aspek ({aspectData.length})
-                </TabsTrigger>
-                <TabsTrigger value="indicator" disabled={indicatorData.length === 0}>
-                  Dashboard Indikator ({indicatorData.length})
+                <TabsTrigger value="dashboard">
+                  Dashboard GCG ({data.length} baris data)
                 </TabsTrigger>
                 <TabsTrigger value="upload">Upload Data Baru</TabsTrigger>
               </TabsList>
 
-              <TabsContent value="aspect">
-                {aspectData.length > 0 ? (
-                  <AspectDashboard data={aspectData} onDeleteData={handleDeleteAspectData} />
+              <TabsContent value="dashboard">
+                {data.length > 0 ? (
+                  <IndicatorDashboard data={data} onDeleteData={handleDeleteData} />
                 ) : (
                   <Card>
                     <CardContent className="p-8 text-center">
-                      <p className="text-muted-foreground">Data aspek belum tersedia. Silakan upload data aspek terlebih dahulu.</p>
-                    </CardContent>
-                  </Card>
-                )}
-              </TabsContent>
-
-              <TabsContent value="indicator">
-                {indicatorData.length > 0 ? (
-                  <IndicatorDashboard data={indicatorData} onDeleteData={handleDeleteIndicatorData} />
-                ) : (
-                  <Card>
-                    <CardContent className="p-8 text-center">
-                      <p className="text-muted-foreground">Data indikator belum tersedia. Silakan upload data indikator terlebih dahulu.</p>
+                      <p className="text-muted-foreground">Data belum tersedia. Silakan upload data terlebih dahulu.</p>
                     </CardContent>
                   </Card>
                 )}
