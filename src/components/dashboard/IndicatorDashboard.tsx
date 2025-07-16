@@ -48,38 +48,46 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
   // Filter data to get indicators only (Type = "indicator")
   const indicatorData = data.filter(item => item.Type === 'indicator');
   
-  // Extract aspect data: combine header info with subtotal values
-  const aspectData = data.filter(item => item.Type === 'header').map(item => {
-    // Find corresponding subtotal row for this section
-    const subtotalRow = data.find(subtotal => 
-      subtotal.Type === 'subtotal' && subtotal.Section === item.Section
-    );
-    
-    // Use subtotal values if available, otherwise use header values
-    const bobot = subtotalRow ? parseNumericValue(subtotalRow.Bobot) : parseNumericValue(item.Bobot);
-    const skor = subtotalRow ? parseNumericValue(subtotalRow.Skor) : parseNumericValue(item.Skor);
-    const capaian = subtotalRow ? parseNumericValue(subtotalRow.Capaian) : parseNumericValue(item.Capaian);
-    
-    return {
-      ...item,
+  // Extract aspect data: combine header info with subtotal values, per tahun & section
+  const aspectData: IndicatorData[] = [];
+  const uniqueTahunSection = Array.from(new Set(data.filter(item => item.Type === 'header').map(item => `${item.Tahun}__${item.Section}`)));
+  for (const key of uniqueTahunSection) {
+    const [tahunStr, section] = key.split('__');
+    const tahun = parseInt(tahunStr);
+    // Cari baris header untuk tahun & section ini
+    const headerRow = data.find(item => item.Type === 'header' && item.Tahun === tahun && item.Section === section);
+    // Cari baris subtotal untuk tahun & section ini
+    const subtotalRow = data.find(item => item.Type === 'subtotal' && item.Tahun === tahun && item.Section === section);
+    // Deskripsi dari header, Bobot/Skor/Capaian dari subtotal (atau header jika subtotal tidak ada)
+    const deskripsi = headerRow?.Aspek_Pengujian || headerRow?.Deskripsi || `Aspek ${section}`;
+    const bobot = subtotalRow ? parseNumericValue(subtotalRow.Bobot) : parseNumericValue(headerRow?.Bobot);
+    const skor = subtotalRow ? parseNumericValue(subtotalRow.Skor) : parseNumericValue(headerRow?.Skor);
+    const capaian = subtotalRow ? parseNumericValue(subtotalRow.Capaian) : parseNumericValue(headerRow?.Capaian);
+    aspectData.push({
+      ...headerRow,
+      Tahun: tahun,
+      Section: section,
       Type: 'aspek',
-      No: item.Section,
-      Deskripsi: item.Deskripsi || item.Aspek_Pengujian || `Aspek ${item.Section}`,
+      No: section,
+      Deskripsi: deskripsi,
       Bobot: bobot,
       Skor: skor,
       Capaian: capaian,
       Penjelasan: capaian > 85 ? 'Sangat Baik' : capaian > 75 ? 'Baik' : capaian > 60 ? 'Cukup Baik' : capaian > 50 ? 'Kurang Baik' :'Perlu Perbaikan',
-      // Copy other fields from subtotal if available
       ...(subtotalRow && {
         Jumlah_Parameter: subtotalRow.Jumlah_Parameter,
-        // Any other fields after Aspek_Pengujian from subtotal
       })
-    };
-  });
+    });
+  }
   
-  // Get unique years and sections from indicator data
+  // Get unique years and sections from indicator data (for indicator visualizations)
   const years = [...new Set(indicatorData.map(item => item.Tahun))].sort();
   const sections = [...new Set(indicatorData.map(item => item.Section))].sort();
+
+  // Get unique years from aspectData (for aspect visualizations)
+  const aspectYears = [...new Set(aspectData.map(item => item.Tahun))].sort();
+  // Get unique sections from aspectData (for aspect visualizations)
+  const aspectSections = [...new Set(aspectData.map(item => item.No))].sort();
 
   // Filter indicator data
   const filteredData = indicatorData.filter(item => {
@@ -88,12 +96,13 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
        yearTo === 'all' ? item.Tahun >= parseInt(yearFrom) :
        item.Tahun >= parseInt(yearFrom) && item.Tahun <= parseInt(yearTo));
     const sectionMatch = selectedSections.length === 0 || selectedSections.includes(item.Section);
-    const capaianMatch = (!minCapaian || item.Capaian >= parseFloat(minCapaian)) &&
-                         (!maxCapaian || item.Capaian <= parseFloat(maxCapaian));
+    const capaianValue = typeof item.Capaian === 'number' ? item.Capaian : parseFloat(item.Capaian as string);
+    const capaianMatch = (!minCapaian || capaianValue >= parseFloat(minCapaian)) &&
+                         (!maxCapaian || capaianValue <= parseFloat(maxCapaian));
     return yearMatch && sectionMatch && capaianMatch;
   });
 
-  // Get filtered years and sections for chart data
+  // Get filtered years and sections for chart data (indicator visualizations)
   const filteredYears = yearFrom === 'all' && yearTo === 'all' ? years :
     years.filter(year => 
       (yearFrom === 'all' || year >= parseInt(yearFrom)) &&
@@ -101,13 +110,18 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
     );
   const filteredSections = selectedSections.length === 0 ? sections : selectedSections;
 
+  // Get filtered years and sections for aspect visualizations
+  const filteredAspectYears = yearFrom === 'all' && yearTo === 'all' ? aspectYears :
+    aspectYears.filter(year => 
+      (yearFrom === 'all' || year >= parseInt(yearFrom)) &&
+      (yearTo === 'all' || year <= parseInt(yearTo))
+    );
+  const filteredAspectSections = selectedSections.length === 0 ? aspectSections : selectedSections;
+
   // Filter aspect data based on selections
   const filteredAspectData = aspectData.filter(item => {
-    const yearMatch = (yearFrom === 'all' && yearTo === 'all') || 
-      (yearFrom === 'all' ? item.Tahun <= parseInt(yearTo) : 
-       yearTo === 'all' ? item.Tahun >= parseInt(yearFrom) :
-       item.Tahun >= parseInt(yearFrom) && item.Tahun <= parseInt(yearTo));
-    const sectionMatch = selectedSections.length === 0 || selectedSections.includes(item.No);
+    const yearMatch = filteredAspectYears.includes(item.Tahun);
+    const sectionMatch = filteredAspectSections.length === 0 || filteredAspectSections.includes(String(item.No));
     return yearMatch && sectionMatch;
   });
 
@@ -126,18 +140,18 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
   }));
 
   // 2. Average Score per Year (Aspect Level)
-  const aspectAvgScoreData = filteredYears.map(year => {
+  const aspectAvgScoreData = filteredAspectYears.map(year => {
     const yearData = filteredAspectData.filter(item => item.Tahun === year);
     const avgScore = yearData.length > 0 ? yearData.reduce((sum, item) => sum + item.Skor, 0) / yearData.length : 0;
     return { year, avgScore: Number(avgScore.toFixed(2)) };
   });
 
   // 3. Aspect Achievement Trend by Year
-  const aspectAchievementTrendByYear = filteredYears.map(year => {
+  const aspectAchievementTrendByYear = filteredAspectYears.map(year => {
     const yearData: Record<string, number> = { year };
-    filteredSections.forEach(aspect => {
-      const yearAspectData = aspectData.find(item => item.No === aspect && item.Tahun === year);
-      yearData[`aspek_${aspect}`] = yearAspectData ? yearAspectData.Capaian : 0;
+    filteredAspectSections.forEach(aspect => {
+      const yearAspectData = aspectData.find(item => String(item.No) === String(aspect) && item.Tahun === year);
+      yearData[`aspek_${aspect}`] = yearAspectData ? Number(yearAspectData.Capaian) : 0;
     });
     return yearData;
   });
@@ -253,6 +267,14 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
   // Sidebar drawer state
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // State for table row limits
+  const [showAllAspek, setShowAllAspek] = useState(false);
+  const [showAllIndikator, setShowAllIndikator] = useState(false);
+
+  // Row limits
+  const aspekTableLimit = 10;
+  const indikatorTableLimit = 10;
+
   return (
     <div className="flex gap-6">
       {/* Sidebar Drawer Button */}
@@ -321,14 +343,19 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
         <Card id={anchorIds.filter}>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Filter Data</CardTitle>
-            {onDeleteData && (
-              <button
-                onClick={onDeleteData}
-                className="px-3 py-1 text-sm bg-destructive text-destructive-foreground rounded hover:bg-destructive/90"
-              >
-                Hapus Dataset
-              </button>
-            )}
+            <button
+              className="px-3 py-1 text-sm bg-muted text-foreground rounded hover:bg-muted/70 border border-zinc-300 ml-4"
+              type="button"
+              onClick={() => {
+                setYearFrom('all');
+                setYearTo('all');
+                setSelectedSections([]);
+                setMinCapaian('');
+                setMaxCapaian('');
+              }}
+            >
+              Clear Filter
+            </button>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
@@ -456,7 +483,7 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                 <LineChart 
                   data={aspectAchievementTrendByYear}
                   xKey="year"
-                  yKeys={filteredSections.map((aspect, index) => ({
+                  yKeys={filteredAspectSections.map((aspect, index) => ({
                     key: `aspek_${aspect}`,
                     name: `Aspek ${aspect}`,
                     color: `hsl(var(--chart-${(index % 5) + 1}))`
@@ -467,12 +494,18 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
           </div>
           {/* 3. Aspect Details Table */}
           <Card id={anchorIds.aspek5}>
-            <CardHeader>
-              <CardTitle>Data Detail Aspek</CardTitle>
-              <CardDescription>Tabel lengkap data aspek yang telah difilter</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Data Detail Aspek</CardTitle>
+                <CardDescription>Tabel lengkap data aspek yang telah difilter</CardDescription>
+              </div>
+
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              <div
+                className={'overflow-x-auto max-h-[600px] overflow-y-auto'}
+                style={{ scrollbarColor: '#e5e7eb transparent', scrollbarWidth: 'thin' }}
+              >
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -492,16 +525,16 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                         <TableCell className="max-w-md">{item.Deskripsi}</TableCell>
                         <TableCell>{item.Bobot.toFixed(3)}</TableCell>
                         <TableCell>{item.Skor.toFixed(3)}</TableCell>
-                        <TableCell>{item.Capaian.toFixed(2)}%</TableCell>
+                        <TableCell>{Number(item.Capaian).toFixed(2)}%</TableCell>
                         <TableCell>
                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                            item.Capaian > 85
+                            Number(item.Capaian) > 85
                               ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
-                              : item.Capaian > 75
+                              : Number(item.Capaian) > 75
                               ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
-                              : item.Capaian > 60
+                              : Number(item.Capaian) > 60
                               ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
-                              : item.Capaian > 50
+                              : Number(item.Capaian) > 50
                               ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100'
                               : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
                           }`}>
@@ -513,6 +546,21 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                     ))}
                   </TableBody>
                 </Table>
+                {!showAllAspek && (
+                  <style>{`
+                    .overflow-x-auto::-webkit-scrollbar {
+                      height: 8px;
+                      width: 8px;
+                    }
+                    .overflow-x-auto::-webkit-scrollbar-thumb {
+                      background: #e5e7eb;
+                      border-radius: 6px;
+                    }
+                    .overflow-x-auto::-webkit-scrollbar-track {
+                      background: transparent;
+                    }
+                  `}</style>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -604,12 +652,18 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
           </div>
           {/* 4. Data Table */}
           <Card id={anchorIds.indikator4}>
-            <CardHeader>
-              <CardTitle>Data Detail Indikator</CardTitle>
-              <CardDescription>Tabel lengkap data indikator yang telah difilter</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Data Detail Indikator</CardTitle>
+                <CardDescription>Tabel lengkap data indikator yang telah difilter</CardDescription>
+              </div>
+
             </CardHeader>
             <CardContent>
-              <div className="overflow-x-auto">
+              <div
+                className={'overflow-x-auto max-h-[600px] overflow-y-auto'}
+                style={{ scrollbarColor: '#e5e7eb transparent', scrollbarWidth: 'thin' }}
+              >
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -650,6 +704,21 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                     ))}
                   </TableBody>
                 </Table>
+                {!showAllIndikator && (
+                  <style>{`
+                    .overflow-x-auto::-webkit-scrollbar {
+                      height: 8px;
+                      width: 8px;
+                    }
+                    .overflow-x-auto::-webkit-scrollbar-thumb {
+                      background: #e5e7eb;
+                      border-radius: 6px;
+                    }
+                    .overflow-x-auto::-webkit-scrollbar-track {
+                      background: transparent;
+                    }
+                  `}</style>
+                )}
               </div>
             </CardContent>
           </Card>
