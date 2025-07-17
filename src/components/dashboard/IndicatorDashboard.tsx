@@ -16,13 +16,13 @@ interface IndicatorData {
   Section?: string;
   No?: number | string;
   Deskripsi?: string;
-  Aspek_Pengujian?: string;
   Jumlah_Parameter?: number;
   Bobot?: number;
   Skor?: number;
   Capaian?: number | string;
   Penjelasan?: string;
   Tahun?: number;
+  Penilai?: string;
   [key: string]: unknown;
 }
 
@@ -37,6 +37,7 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
   const [selectedSections, setSelectedSections] = useState<string[]>([]);
   const [minCapaian, setMinCapaian] = useState<string>('');
   const [maxCapaian, setMaxCapaian] = useState<string>('');
+  const [selectedPenilai, setSelectedPenilai] = useState<string>('all');
 
   // Helper function to parse numeric values and handle invalid data
   const parseNumericValue = (value: unknown): number => {
@@ -47,6 +48,8 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
 
   // Filter data to get indicators only (Type = "indicator")
   const indicatorData = data.filter(item => item.Type === 'indicator');
+  // Get unique Penilai values
+  const penilaiList = Array.from(new Set(data.map(item => item.Penilai).filter(Boolean)));
   
   // Extract aspect data: combine header info with subtotal values, per tahun & section
   const aspectData: IndicatorData[] = [];
@@ -78,6 +81,7 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
       Skor: skor,
       Capaian: capaian,
       Penjelasan: capaian === '' ? '' : (capaian > 85 ? 'Sangat Baik' : capaian > 75 ? 'Baik' : capaian > 60 ? 'Cukup Baik' : capaian > 50 ? 'Kurang Baik' :'Perlu Perbaikan'),
+      Penilai: headerRow?.Penilai ?? '',
       ...(subtotalRow && {
         Jumlah_Parameter: subtotalRow.Jumlah_Parameter,
       })
@@ -106,7 +110,8 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
     const capaianValue = typeof item.Capaian === 'number' ? item.Capaian : parseFloat(item.Capaian as string);
     const capaianMatch = (!minCapaian || capaianValue >= parseFloat(minCapaian)) &&
                          (!maxCapaian || capaianValue <= parseFloat(maxCapaian));
-    return yearMatch && sectionMatch && capaianMatch;
+    const penilaiMatch = selectedPenilai === 'all' || item.Penilai === selectedPenilai;
+    return yearMatch && sectionMatch && capaianMatch && penilaiMatch;
   });
 
   // Get filtered years and sections for chart data (indicator visualizations)
@@ -129,7 +134,8 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
   const filteredAspectData = aspectData.filter(item => {
     const yearMatch = filteredAspectYears.includes(item.Tahun);
     const sectionMatch = filteredAspectSections.length === 0 || filteredAspectSections.includes(String(item.No));
-    return yearMatch && sectionMatch;
+    const penilaiMatch = selectedPenilai === 'all' || item.Penilai === selectedPenilai;
+    return yearMatch && sectionMatch && penilaiMatch;
   });
 
   // ASPECT LEVEL VISUALIZATIONS
@@ -149,14 +155,19 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
   }));
 
   // 2. Total Score per Year (Aspect Level)
-  const aspectTotalScoreData = filteredAspectYears.map(year => {
-    const yearData = filteredAspectData.filter(item => item.Tahun === year);
-    const totalScore = yearData.reduce((sum, item) => sum + item.Skor, 0);
-    return { year, totalScore: Number(totalScore.toFixed(2)) };
-  });
+  const aspectTotalScoreData = filteredAspectYears
+    .map(year => {
+      const yearData = filteredAspectData.filter(item => item.Tahun === year);
+      const totalScore = yearData.reduce((sum, item) => sum + item.Skor, 0);
+      return { year, totalScore: Number(totalScore.toFixed(2)) };
+    })
+    .filter(item => item.totalScore > 0);
+
+  // Filter tahun yang total skor > 0 untuk grafik capaian aspek
+  const aspectYearsWithScore = aspectTotalScoreData.map(item => item.year);
 
   // 3. Aspect Achievement Trend by Year
-  const aspectAchievementTrendByYear = filteredAspectYears.map(year => {
+  const aspectAchievementTrendByYear = aspectYearsWithScore.map(year => {
     const yearData: Record<string, number> = { year };
     filteredAspectSections.forEach(aspect => {
       const yearAspectData = aspectData.find(item => String(item.No) === String(aspect) && item.Tahun === year);
@@ -342,17 +353,17 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                 Filter Data
               </a>
             </li>
-            <li className="mt-2 mb-1 text-xs uppercase tracking-wider text-zinc-500 font-bold">Analisis Aspek</li>
+            <li className="mt-2 mb-1 text-xs uppercase tracking-wider text-zinc-500 font-bold">Level Aspek</li>
             <ul className="space-y-1 mb-4">
               <li><a href={`#${anchorIds.aspek1}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Distribusi Status Aspek</a></li>
               <li><a href={`#${anchorIds.aspek2}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Distribusi Bobot Antar Aspek</a></li>
-              <li><a href={`#${anchorIds.aspek3}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Skor Rata-rata Aspek Tiap Tahun</a></li>
+              <li><a href={`#${anchorIds.aspek3}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Jumlah Skor Tiap Tahun</a></li>
               <li><a href={`#${anchorIds.aspek4}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Capaian Tiap Aspek dari Tahun ke Tahun</a></li>
               <li><a href={`#${anchorIds.aspek5}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Data Detail Aspek</a></li>
             </ul>
-            <li className="mb-1 text-xs uppercase tracking-wider text-zinc-500 font-bold">Analisis Indikator</li>
+            <li className="mb-1 text-xs uppercase tracking-wider text-zinc-500 font-bold">Level Indikator</li>
             <ul className="space-y-1">
-              <li><a href={`#${anchorIds.indikator1}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Rekap Capaian Skor Tiap Aspek</a></li>
+              <li><a href={`#${anchorIds.indikator1}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Rekap Capaian Tiap Aspek</a></li>
               <li><a href={`#${anchorIds.indikator2}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Top & Bottom 5 Indikator</a></li>
               <li><a href={`#${anchorIds.indikator3}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Distribusi Bobot Indikator per Aspek</a></li>
               <li><a href={`#${anchorIds.indikator4}`} className="block px-3 py-2 rounded-lg hover:bg-primary/10 transition" onClick={() => setSidebarOpen(false)}>Data Detail Indikator</a></li>
@@ -375,13 +386,14 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                 setSelectedSections([]);
                 setMinCapaian('');
                 setMaxCapaian('');
+                setSelectedPenilai('all');
               }}
             >
               Clear Filter
             </button>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
               <div>
                 <label className="text-sm font-medium">Tahun Dari:</label>
                 <Select value={yearFrom} onValueChange={setYearFrom}>
@@ -428,7 +440,20 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                   onChange={(e) => setMaxCapaian(e.target.value)} 
                 />
               </div>
-
+              <div>
+                <label className="text-sm font-medium">Penilai:</label>
+                <Select value={selectedPenilai} onValueChange={setSelectedPenilai}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua</SelectItem>
+                    {penilaiList.map(penilai => (
+                      <SelectItem key={penilai} value={penilai}>{penilai}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
               <label className="text-sm font-medium mb-2 block">Pilih Aspek (kosong = semua):</label>
@@ -592,6 +617,7 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                       <TableHead>Capaian (%)</TableHead>
                       <TableHead>Penjelasan</TableHead>
                       <TableHead>Tahun</TableHead>
+                      <TableHead>Penilai</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -622,6 +648,7 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                           )}
                         </TableCell>
                         <TableCell>{item.Tahun}</TableCell>
+                        <TableCell>{String(item.Penilai ?? '')}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -878,6 +905,7 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                           <TableHead>Skor</TableHead>
                           <TableHead>Capaian</TableHead>
                           <TableHead>Tahun</TableHead>
+                          <TableHead>Penilai</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -886,26 +914,27 @@ export const IndicatorDashboard = ({ data, onDeleteData }: IndicatorDashboardPro
                             <TableCell>Aspek {item.Section}</TableCell>
                             <TableCell>{item.No}</TableCell>
                             <TableCell className="max-w-md">{item.Deskripsi}</TableCell>
-                        <TableCell>{item.Bobot.toFixed(3)}</TableCell>
-                        <TableCell>{item.Skor.toFixed(3)}</TableCell>
-                        <TableCell>
-                          {item.Capaian === '' ? '' : (
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                              Number(item.Capaian) > 85
-                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
-                                : Number(item.Capaian) > 75
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
-                                : Number(item.Capaian) > 60
-                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
-                                : Number(item.Capaian) > 50
-                                ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100'
-                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
-                            }`}>
-                              {Number(item.Capaian).toFixed(1)}%
-                            </span>
-                          )}
-                        </TableCell>
-                        <TableCell>{item.Tahun}</TableCell>
+                            <TableCell>{item.Bobot.toFixed(3)}</TableCell>
+                            <TableCell>{item.Skor.toFixed(3)}</TableCell>
+                            <TableCell>
+                              {item.Capaian === '' ? '' : (
+                                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                                  Number(item.Capaian) > 85
+                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-100'
+                                    : Number(item.Capaian) > 75
+                                    ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-100'
+                                    : Number(item.Capaian) > 60
+                                    ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-100'
+                                    : Number(item.Capaian) > 50
+                                    ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-100'
+                                    : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-100'
+                                }`}>
+                                  {Number(item.Capaian).toFixed(1)}%
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell>{item.Tahun}</TableCell>
+                            <TableCell>{String(item.Penilai ?? '')}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>

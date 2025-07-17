@@ -14,13 +14,13 @@ interface DataRow {
   Section?: string;
   No?: number | string;
   Deskripsi?: string;
-  Aspek_Pengujian?: string;
   Jumlah_Parameter?: number;
   Bobot?: number;
   Skor?: number;
   Capaian?: number | string;
   Penjelasan?: string;
   Tahun?: number;
+  Penilai?: string;
   [key: string]: unknown;
 }
 
@@ -81,23 +81,13 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
             console.log('Raw Excel data length:', jsonData.length);
             console.log('Raw first row:', jsonData[0]);
             
-            // Handle column name variations and data cleaning
+            // Data cleaning: Clean percentage values (remove % symbol and convert to number)
             jsonData = jsonData.map(row => {
-              const newRow = { ...row };
-              
-              // Map Aspek_Pengujian to Deskripsi if it exists
-              if (Object.prototype.hasOwnProperty.call(newRow, 'Aspek_Pengujian') && !Object.prototype.hasOwnProperty.call(newRow, 'Deskripsi')) {
-                newRow.Deskripsi = newRow.Aspek_Pengujian;
-                delete newRow.Aspek_Pengujian;
+              if (row.Capaian && typeof row.Capaian === 'string' && row.Capaian.includes('%')) {
+                const numValue = parseFloat(row.Capaian.replace('%', '').trim());
+                row.Capaian = isNaN(numValue) ? row.Capaian : numValue;
               }
-              
-              // Clean percentage values (remove % symbol and convert to number)
-              if (newRow.Capaian && typeof newRow.Capaian === 'string' && newRow.Capaian.includes('%')) {
-                const numValue = parseFloat(newRow.Capaian.replace('%', '').trim());
-                newRow.Capaian = isNaN(numValue) ? newRow.Capaian : numValue;
-              }
-              
-              return newRow;
+              return row;
             });
             console.log('After column mapping, first row:', jsonData[0]);
             console.log('After mapping, first row keys:', jsonData[0] ? Object.keys(jsonData[0]) : 'No data');
@@ -137,23 +127,19 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
         throw new Error('File kosong atau format tidak valid');
       }
 
-      // Validate required columns - check for both indicator and header data
+      // Validasi hanya pada baris indikator
       const indicatorRow = data.find(row => row.Level === 2 || row.Type === 'indicator');
-      if (!indicatorRow) {
-        throw new Error('File tidak mengandung data indikator. Pastikan ada baris dengan Level=2 atau Type="indicator"');
-      }
-      
-      const requiredColumns = ['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Bobot', 'Skor', 'Capaian', 'Tahun'];
-      const actualColumns = Object.keys(indicatorRow);
-      const missingColumns = requiredColumns.filter(col => !Object.prototype.hasOwnProperty.call(indicatorRow, col));
-      
-      console.log('Validating data row:', indicatorRow);
-      console.log('Required columns:', requiredColumns);
-      console.log('Actual columns:', actualColumns);
-      console.log('Missing columns:', missingColumns);
-      
-      if (missingColumns.length > 0) {
-        throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}.\nKolom yang hilang: ${missingColumns.join(', ')}.\nKolom yang ditemukan: ${actualColumns.join(', ')}`);
+      if (indicatorRow) {
+        const requiredColumns = ['Level', 'Type', 'Section', 'No', 'Deskripsi', 'Jumlah_Parameter', 'Bobot', 'Skor', 'Capaian', 'Tahun', 'Penilai'];
+        const actualColumns = Object.keys(indicatorRow);
+        const missingColumns = requiredColumns.filter(col => !Object.prototype.hasOwnProperty.call(indicatorRow, col));
+        console.log('Validating data row:', indicatorRow);
+        console.log('Required columns:', requiredColumns);
+        console.log('Actual columns:', actualColumns);
+        console.log('Missing columns:', missingColumns);
+        if (missingColumns.length > 0) {
+          throw new Error(`File harus memiliki kolom: ${requiredColumns.join(', ')}.\nKolom yang hilang: ${missingColumns.join(', ')}.\nKolom yang ditemukan: ${actualColumns.join(', ')}`);
+        }
       }
 
       onDataUpload(data);
@@ -186,7 +172,7 @@ export const FileUpload = ({ onDataUpload }: FileUploadProps) => {
       <CardContent className="space-y-4">
         <Alert>
           <AlertDescription>
-            Upload data yang berisi kolom: Level, Type, Section, No, Deskripsi, Bobot, Skor, Capaian, Tahun
+            Upload data yang berisi kolom: Level, Type, Section, No, Deskripsi, Jumlah_Parameter, Bobot, Skor, Capaian, Penjelasan, Tahun, Penilai
           </AlertDescription>
         </Alert>
         

@@ -11,7 +11,6 @@ interface DataRow {
   Section?: string;
   No?: number | string;
   Deskripsi?: string;
-  Aspek_Pengujian?: string;
   Jumlah_Parameter?: number;
   Bobot?: number;
   Skor?: number;
