@@ -70,7 +70,7 @@ const Index = () => {
             {/* Status Cards (separate, text shifted down) */}
             <div className="grid grid-cols-1 md:grid-cols-6 lg:grid-cols-6 gap-4">
               <Card className="bg-gradient-success text-success-foreground col-span-1 md:col-start-1 lg:col-start-1">
-                <CardContent className="p-4 mt-3.5">
+                <CardContent className="p-4 mt-3">
                   <div className="flex flex-col items-center justify-center">
                     <p className="text-sm opacity-90">Data Aspek</p>
                     <p className="text-2xl font-bold">{data.filter(item => item.Type === 'header').length}</p>
@@ -79,7 +79,7 @@ const Index = () => {
               </Card>
 
               <Card className="bg-gradient-primary text-primary-foreground col-span-1">
-                <CardContent className="p-4 mt-3.5">
+                <CardContent className="p-4 mt-3">
                   <div className="flex flex-col items-center justify-center">
                     <p className="text-sm opacity-90">Data Indikator</p>
                     <p className="text-2xl font-bold">{data.filter(item => item.Type === 'indicator').length}</p>
@@ -131,7 +131,7 @@ const Index = () => {
               </Card>
 
               <Card className="bg-card col-span-1">
-                <CardContent className="p-4 mt-3.5">
+                <CardContent className="p-4 mt-3">
                   <div className="flex flex-col items-center justify-center">
                     <p className="text-sm text-muted-foreground">Status</p>
                     <p className="text-sm font-semibold text-success">Ready</p>

@@ -18,16 +18,17 @@ export const DonutChart = ({ data, title, tooltipType }: DonutChartProps) => {
     const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
     const y = cy + radius * Math.sin(-midAngle * RADIAN);
-
     return (
-      <text 
-        x={x} 
-        y={y} 
-        fill="white" 
-        textAnchor={x > cx ? 'start' : 'end'} 
+      <text
+        x={x}
+        y={y}
+        fill="#fff"
+        textAnchor="middle"
         dominantBaseline="central"
-        fontSize={12}
-        fontWeight="bold"
+        fontSize={13}
+        fontWeight={500}
+        fontFamily="inherit"
+        style={{ fontFamily: 'inherit', letterSpacing: 0.2 }}
       >
         {`${(percent * 100).toFixed(0)}%`}
       </text>
@@ -56,24 +57,29 @@ export const DonutChart = ({ data, title, tooltipType }: DonutChartProps) => {
               <Cell key={`cell-${index}`} fill={entry.color} />
             ))}
           </Pie>
-          <Tooltip 
-            formatter={(_value: number, _name: string, props: any) => {
-              if (typeof tooltipType !== 'undefined' && tooltipType === 'aspek') {
-                // value pada payload = jumlah aspek untuk slice ini
-                const jumlahAspek = props?.payload?.value;
-                return [
-                  jumlahAspek !== undefined ? `${jumlahAspek} aspek` : '',
-                  'Jumlah'
-                ];
+          <Tooltip
+            formatter={(_value: number, name: string, props: any) => {
+              if (tooltipType === 'aspek') {
+                // Untuk Distribusi Status Aspek: tampilkan "Penjelasan: Jumlah aspek"
+                // Cek apakah data punya totalAspek (khusus chart status aspek)
+                const totalAspek = props?.payload?.value;
+                if (typeof totalAspek === 'number' && name) {
+                  return `${totalAspek} aspek`;
+                }
+                // Fallback ke bobot jika bukan chart status aspek
+                const totalBobot = props?.payload?.totalBobot;
+                return totalBobot !== undefined ? `${totalBobot} bobot` : '';
               } else {
                 const totalBobot = props?.payload?.totalBobot;
-                return [
-                  totalBobot !== undefined ? `${totalBobot} bobot` : '',
-                  'Jumlah'
-                ];
+                return totalBobot !== undefined ? `${totalBobot} bobot` : '';
               }
             }}
-            labelFormatter={(name) => `Status: ${name}`}
+            labelFormatter={(name, _payload) => {
+              if (tooltipType === 'aspek') {
+                return name;
+              }
+              return `Status: ${name}`;
+            }}
           />
           <Legend />
         </PieChart>
